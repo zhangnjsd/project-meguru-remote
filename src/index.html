@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>蓝牙虚拟摇杆</title>
+    <script type="module" src="/main.js" defer></script>
+</head>
+
+<body>
+    <main class="container">
+        <div class="right-panel">
+            <div class="section joystick-section">
+                <h2>🎮 虚拟摇杆</h2>
+                <div class="joystick-status">
+                    <p id="controller-status">● 等待检测...</p>
+                    <p id="joystick-values">X: 127 (0x7F) | Y: 127 (0x7F)</p>
+                </div>
+                <div id="joystick-container" class="joystick-disabled">
+                    <div id="joystick-base" class="joystick-base">
+                        <div id="joystick-stick" class="joystick-stick"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="left-panel">
+            <div class="section connection-section">
+                <h2>🔗 设备连接</h2>
+                <p id="connection-status">✗ 未连接</p>
+                <div class="button-group">
+                    <button id="connect-default-btn" class="btn btn-primary">连接设备</button>
+                    <button id="disconnect-btn" class="btn btn-secondary" disabled>断开连接</button>
+                </div>
+            </div>
+
+            <div class="section log-section">
+                <h2>📋 操作日志</h2>
+                <div id="log-container" class="log-box"></div>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

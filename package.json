@@ -1,0 +1,16 @@
+{
+  "name": "android-test-bt",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  },
+  "dependencies": {
+    "@mnlphlp/plugin-blec": "^0.8.1",
+    "@tauri-apps/plugin-notification": "^2.3.3"
+  }
+}
