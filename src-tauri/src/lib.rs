@@ -21,6 +21,8 @@ const SERVICE_UUID: Uuid = Uuid::from_bytes([0xA1, 0xC6, 0xE6, 0xD4, 0x11, 0x45,
 const X_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x05, 0x91, 0xB3, 0x6B, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
 const Y_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0xD3, 0x09, 0xD1, 0x5D, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
 const CONTROLLER_USABLE_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0xE7, 0xA1, 0xC2, 0xB3, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
+const LIFTING_ARM_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0xA7, 0xA9, 0xD7, 0xE3, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
+const MCLAW_SWITCH_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0xE2, 0xD3, 0xD4, 0xC4, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
 const DEVICE_ADDRESS: &str = "98:88:E0:10:BC:3E";
 const MAXIUM_DISCOVER_PERIOD: u64 = 20000; // in milliseconds
 
@@ -136,6 +138,30 @@ async fn send_joystick_data(state: tauri::State<'_, AppState>, x: u8, y: u8) -> 
         .map_err(|e| format!("Failed to write Y value: {}", e))?;
     
     Ok(format!("Joystick data sent: X={}, Y={}", x, y))
+}
+
+#[tauri::command]
+async fn send_lifting_arm_value(value: u8) -> Result<String, String> {
+    write_data(LIFTING_ARM_CHARACTERISTIC_UUID, SERVICE_UUID, vec![value])
+        .await
+        .map_err(|e| format!("Failed to write lifting arm value: {}", e))?;
+
+    Ok(format!("Lifting arm value sent: {}", value))
+}
+
+#[tauri::command]
+async fn send_arm_command(command: String) -> Result<String, String> {
+    let value = match command.as_str() {
+        "grab" => 0x01,
+        "release" => 0x00,
+        _ => return Err(format!("Unsupported arm command: {}", command)),
+    };
+
+    write_data(MCLAW_SWITCH_CHARACTERISTIC_UUID, SERVICE_UUID, vec![value])
+        .await
+        .map_err(|e| format!("Failed to write arm command {:?}: {}", command, e))?;
+
+    Ok(format!("Arm command '{}' sent with value 0x{:02X}", command, value))
 }
 
 /*
@@ -336,6 +362,8 @@ pub fn run() {
             get_controller_usable,
             poll_controller_status,
             send_joystick_data,
+            send_lifting_arm_value,
+            send_arm_command,
             preload_operation,
             check_ble_permissions,
             disconnect,

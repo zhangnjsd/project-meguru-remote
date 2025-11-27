@@ -4,21 +4,24 @@
 <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="styles.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>蓝牙虚拟摇杆</title>
     <script type="module" src="/main.js" defer></script>
 </head>
 
 <body>
     <main class="container">
-        <div class="right-panel">
+        <!-- Left Panel: Joystick -->
+        <div class="left-panel">
             <div class="section joystick-section">
                 <h2>🎮 虚拟摇杆</h2>
                 <div class="joystick-status">
                     <p id="controller-status">● 等待检测...</p>
-                    <p id="joystick-values">X: 127 (0x7F) | Y: 127 (0x7F)</p>
+                    <p id="joystick-values">X: 127 (0x7F)<br>Y: 127 (0x7F)</p>
                 </div>
-                <div id="joystick-container" class="joystick-disabled">
+                <div id="joystick-container">
                     <div id="joystick-base" class="joystick-base">
                         <div id="joystick-stick" class="joystick-stick"></div>
                     </div>
@@ -26,18 +29,48 @@
             </div>
         </div>
 
-        <div class="left-panel">
+        <!-- Center Panel: Connection -->
+        <div class="center-panel">
             <div class="section connection-section">
                 <h2>🔗 设备连接</h2>
                 <p id="connection-status">✗ 未连接</p>
                 <div class="button-group">
-                    <button id="connect-default-btn" class="btn btn-primary">连接设备</button>
-                    <button id="disconnect-btn" class="btn btn-secondary" disabled>断开连接</button>
+                    <button id="connect-default-btn" class="btn btn-primary">连接</button>
+                    <button id="disconnect-btn" class="btn btn-secondary" disabled>断开</button>
                 </div>
             </div>
+            <!-- Log Ball in Center Panel -->
+            <button id="log-ball" class="log-ball" title="操作日志">📋</button>
+        </div>
 
-            <div class="section log-section">
-                <h2>📋 操作日志</h2>
+        <!-- Right Panel: Arm Control -->
+        <div class="right-panel">
+            <div class="section arm-control-section">
+                <h2>🦾 机械臂控制</h2>
+                <div class="arm-control-content">
+                    <div class="arm-button-group">
+                        <button id="grab-btn" class="btn btn-grab">抓取</button>
+                        <button id="release-btn" class="btn btn-release">放开</button>
+                        <button id="throw-btn" class="btn btn-throw">投掷</button>
+                    </div>
+                    <div class="lifting-slider-panel">
+                        <div class="lifting-slider-header">
+                            <span id="lifting-value" class="lifting-value-display">0x00</span>
+                        </div>
+                        <div class="lifting-slider-track">
+                            <span class="slider-cap slider-cap-max">0xFF</span>
+                            <input id="lifting-slider" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="升降滑杆" />
+                            <span class="slider-cap slider-cap-min">0x00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Modal -->
+        <div id="log-modal" class="log-modal">
+            <div class="log-modal-content">
+                <button id="close-log-btn" class="close-log-btn">×</button>
                 <div id="log-container" class="log-box"></div>
             </div>
         </div>
