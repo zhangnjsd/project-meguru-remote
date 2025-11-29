@@ -4,7 +4,6 @@
     box-sizing: border-box;
     -webkit-user-select: none;
     user-select: none;
-    /* 禁用手势放大 */
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
