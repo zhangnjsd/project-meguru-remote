@@ -16,7 +16,7 @@ const fn transfer_standard_u16_to_u128(value: u16) -> Uuid {
 }
 */
 
-// Define default settings.
+// ! Define default settings.
 const SERVICE_UUID: Uuid = Uuid::from_bytes([0xA1, 0xC6, 0xE6, 0xD4, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
 const X_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x05, 0x91, 0xB3, 0x6B, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
 const Y_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0xD3, 0x09, 0xD1, 0x5D, 0x11, 0x45, 0x19, 0x19, 0x19, 0x19, 0x11, 0x45, 0x14, 0x19, 0x81, 0x00]);
@@ -226,7 +226,7 @@ async fn disconnect(state: tauri::State<'_, AppState>) -> Result<String, String>
             return Err(format!("Disconnect failed: {}", e));
         }
         Ok(_) => {
-            // Reset all state after successful disconnect
+            // ! Reset all state after successful disconnect
             set_connected_device_address(state.clone(), "".to_string()).await?;
             *state.is_connected.lock().unwrap() = false;
             set_controller_usable(state.clone(), false).await?;
@@ -288,16 +288,16 @@ async fn scan_with_monitor() -> Result<mpsc::Receiver<Vec<BleDevice>>, String> {
 async fn preload_operation(state: tauri::State<'_, AppState>) -> Result<(), String> {
     info!("Starting scan for device: {}", DEVICE_ADDRESS);
     
-    // Start scanning with monitoring
+    // ? Start scanning with monitoring
     let mut rx = scan_with_monitor().await?;
     
-    // Monitor scan results
+    // ? Monitor scan results
     let target_address = DEVICE_ADDRESS.to_uppercase();
     
     while let Some(devices) = rx.recv().await {
         info!("Discovered {} device(s)", devices.len());
         
-        // Check if target device is in the discovered devices
+        // * Check if target device is in the discovered devices
         for device in devices {
             let device_address = device.address.to_uppercase();
             info!("Found device: {} (Name: {:?})", device_address, device.name);
@@ -305,18 +305,18 @@ async fn preload_operation(state: tauri::State<'_, AppState>) -> Result<(), Stri
             if device_address == target_address {
                 info!("Target device found: {}", device_address);
                 
-                // Stop scanning immediately using stop_scan function
+                // * Stop scanning immediately using stop_scan function
                 stop_scan().await.unwrap_or_else(|e| {
                     info!("Failed to stop scan: {}", e);
                     e
                 });
                 
-                // Connect to the device using connect function
+                // * Connect to the device using connect function
                 match connect(state.clone(), &device.address).await {
                     Ok(_) => {
                         info!("Successfully connected to {}", device.address);
                         
-                        // Get current usable state from device
+                        // * Get current usable state from device
                         match receive_data(CONTROLLER_USABLE_CHARACTERISTIC_UUID, SERVICE_UUID).await {
                             Ok(data) => {
                                 let usable = !data.is_empty() && data[0] == CONTROLLER_USABLE;
@@ -338,7 +338,6 @@ async fn preload_operation(state: tauri::State<'_, AppState>) -> Result<(), Stri
         }
     }
     
-    // If we exit the loop, it means scan period ended without finding the device
     Err(format!("Target device {} not found within scan period", DEVICE_ADDRESS))
 }
 

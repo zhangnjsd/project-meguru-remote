@@ -1,6 +1,6 @@
 const { invoke } = window.__TAURI__.core;
 
-// DOM element references
+// * DOM element references
 const connectionStatus = document.querySelector("#connection-status");
 const connectDefaultBtn = document.querySelector("#connect-default-btn");
 const disconnectBtn = document.querySelector("#disconnect-btn");
@@ -19,15 +19,15 @@ const throwBtn = document.querySelector("#throw-btn");
 const liftingSlider = document.querySelector("#lifting-slider");
 const liftingValue = document.querySelector("#lifting-value");
 
-// Configuration constants
+// * Configuration constants
 const DEFAULT_CONNECT_DEVICE_MAC = "98:88:E0:10:BC:3E";
-const JOYSTICK_ZERO_VALUE = 0x7F; // 127
-const POLL_INTERVAL = 100; // Poll controller status every 100ms
-const SEND_INTERVAL = 50; // Send joystick data every 50ms
+const JOYSTICK_ZERO_VALUE = 0x7F; // * 127 as mid value (0)
+const POLL_INTERVAL = 30; // ! Poll controller status every 30ms
+const SEND_INTERVAL = 20; // ! Send joystick data every 20ms
 const LIFTING_MIN = 0x00;
 const LIFTING_MAX = 0xFF;
 
-// Application state
+// * Application state
 let isConnected = false;
 let controllerUsable = false;
 let pollIntervalId = null;
@@ -35,12 +35,12 @@ let sendIntervalId = null;
 let liftingPendingValue = null;
 let liftingSendTimeoutId = null;
 
-// Joystick state
+// * Joystick state
 let joystickActive = false;
 let currentX = JOYSTICK_ZERO_VALUE;
 let currentY = JOYSTICK_ZERO_VALUE;
 
-// Track active touches for multi-finger stability
+// * Track active touches for multi-finger stability
 let activeTouches = new Map();
 let primaryTouchId = null;
 
@@ -81,7 +81,7 @@ function bindInstantButton(button, action) {
     });
 }
 
-// Add log message to UI
+// ? Add log message to UI
 function addLog(message, type = "info") {
     const entry = document.createElement("p");
     entry.className = `log-entry ${type}`;
@@ -90,7 +90,7 @@ function addLog(message, type = "info") {
     logContainer.scrollTop = logContainer.scrollHeight;
 }
 
-// Update connection status and UI
+// ? Update connection status and UI
 function updateConnectionStatus(connected, address = null) {
     isConnected = connected;
     if (connected) {
@@ -115,7 +115,7 @@ function updateConnectionStatus(connected, address = null) {
     }
 }
 
-// Update controller usable status
+// ? Update controller usable status
 function updateControllerStatus(usable) {
     controllerUsable = usable;
     if (usable) {
@@ -145,7 +145,7 @@ function updateControllerStatus(usable) {
     }
 }
 
-// Update joystick value display
+// ? Update joystick value display
 function updateJoystickDisplay(x, y) {
     joystickValues.innerHTML = `X: ${x} (0x${x.toString(16).toUpperCase().padStart(2, '0')})<br>Y: ${y} (0x${y.toString(16).toUpperCase().padStart(2, '0')})`;
 }
@@ -161,7 +161,7 @@ function updateLiftingDisplay(value) {
     liftingValue.textContent = `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
 }
 
-// Reset joystick to center position
+// ? Reset joystick to center position
 function resetJoystick() {
     // Add transition for smooth return to center
     joystickStick.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
@@ -176,7 +176,7 @@ function resetJoystick() {
     }, 200);
 }
 
-// Convert screen position to joystick value (0x00 - 0xFF)
+// ? Convert screen position to joystick value (0x00 - 0xFF)
 function positionToValue(position, max) {
     // position: -1 to 1 (center is 0)
     // Convert to 0x00 (0) to 0xFF (255), with 0x7F (127) as center
@@ -184,7 +184,7 @@ function positionToValue(position, max) {
     return Math.max(0, Math.min(255, value));
 }
 
-// Handle joystick movement
+// ? Handle joystick movement
 function handleJoystickMove(clientX, clientY) {
     // Allow joystick movement at any time for debugging/testing
     // Ensure no transition during active movement
@@ -228,7 +228,7 @@ function handleJoystickMove(clientX, clientY) {
     updateJoystickDisplay(currentX, currentY);
 }
 
-// Start joystick interaction
+// ? Start joystick interaction
 function startJoystick(event) {
     // Allow joystick movement at any time for debugging/testing
     joystickActive = true;
@@ -243,7 +243,7 @@ function startJoystick(event) {
     }
 }
 
-// Move joystick
+// ? Move joystick
 function moveJoystick(event) {
     if (!joystickActive) return;
     
@@ -256,7 +256,7 @@ function moveJoystick(event) {
     }
 }
 
-// Stop joystick interaction
+// ? Stop joystick interaction
 function stopJoystick() {
     if (!joystickActive) return;
     
@@ -267,17 +267,16 @@ function stopJoystick() {
     resetJoystick();
 }
 
-// Check if touch target is in joystick area
+// ? Check if touch target is in joystick area
 function isTouchInJoystick(clientX, clientY) {
     const rect = joystickBase.getBoundingClientRect();
-    // 不添加缓冲区，使用精确的摇杆区域
     return clientX >= rect.left &&
            clientX <= rect.right &&
            clientY >= rect.top &&
            clientY <= rect.bottom;
 }
 
-// Enhanced touch handling for multi-finger stability
+// ? Enhanced touch handling for multi-finger stability
 function handleTouchStart(event) {
     // Only process touches that start on the joystick
     for (let i = 0; i < event.touches.length; i++) {
@@ -289,8 +288,7 @@ function handleTouchStart(event) {
             });
         }
     }
-    /* trunk-ignore(git-diff-check/error) */
-    
+
     // Assign primary touch only if not already assigned
     if (primaryTouchId === null) {
         // Find first touch in joystick area
@@ -307,6 +305,7 @@ function handleTouchStart(event) {
     }
 }
 
+// ? Handle touch move events
 function handleTouchMove(event) {
     // Only prevent default if actually controlling joystick
     if (primaryTouchId !== null && joystickActive) {
@@ -328,12 +327,12 @@ function handleTouchMove(event) {
     }
 }
 
+// ? Handle touch end events
 function handleTouchEnd(event) {
     // Remove ended touches
     for (let i = 0; i < event.changedTouches.length; i++) {
         const touch = event.changedTouches[i];
         activeTouches.delete(touch.identifier);
-        /* trunk-ignore(git-diff-check/error) */
 
         // If primary touch ended, stop joystick
         if (touch.identifier === primaryTouchId) {
@@ -357,22 +356,24 @@ function handleTouchEnd(event) {
     }
 }
 
+// ? Handle touch cancel events
 function handleTouchCancel(event) {
     activeTouches.clear();
     primaryTouchId = null;
     stopJoystick();
 }
 
-// Toggle log modal visibility
+// * Toggle log modal visibility
 function openLogModal() {
     logModal.classList.add("active");
 }
 
+// * Close log modal
 function closeLogModal() {
     logModal.classList.remove("active");
 }
 
-// Send joystick data to backend
+// ? Send joystick data to backend
 async function sendJoystickData() {
     if (!isConnected || !controllerUsable) return;
     
@@ -386,6 +387,7 @@ async function sendJoystickData() {
     }
 }
 
+// ? Queue lifting arm value to send with throttling
 function queueLiftingSend(value) {
     if (!isConnected || !controllerUsable) return;
     liftingPendingValue = value;
@@ -403,6 +405,7 @@ function queueLiftingSend(value) {
     }, 40);
 }
 
+// ? Send lifting arm value to backend
 async function sendLiftingArmValue(value) {
     try {
         await invoke("send_lifting_arm_value", { value });
@@ -411,7 +414,7 @@ async function sendLiftingArmValue(value) {
     }
 }
 
-// Poll controller status from device
+// ? Poll controller status from device
 async function pollControllerStatus() {
     if (!isConnected) return;
     
@@ -424,7 +427,7 @@ async function pollControllerStatus() {
     }
 }
 
-// Start polling controller status
+// ? Start polling controller status
 function startPolling() {
     if (pollIntervalId) return;
     
@@ -432,7 +435,7 @@ function startPolling() {
     addLog("开始轮询控制器状态", "info");
 }
 
-// Stop polling controller status
+// ? Stop polling controller status
 function stopPolling() {
     if (pollIntervalId) {
         clearInterval(pollIntervalId);
@@ -446,7 +449,7 @@ function stopPolling() {
     }
 }
 
-// Check Bluetooth permissions
+// ? Check Bluetooth permissions
 async function checkPermissions() {
     try {
         const hasPermissions = await invoke("check_ble_permissions");
@@ -461,7 +464,7 @@ async function checkPermissions() {
     }
 }
 
-// Auto scan and connect to default device
+// ? Auto scan and connect to default device
 async function autoConnect() {
     try {
         addLog("正在扫描并连接设备...", "info");
@@ -475,7 +478,7 @@ async function autoConnect() {
     }
 }
 
-// Manually connect to specified device
+// ? Manually connect to specified device
 async function connectToDevice(address) {
     try {
         addLog(`正在连接设备 ${address}...`, "info");
@@ -489,7 +492,7 @@ async function connectToDevice(address) {
     }
 }
 
-// Disconnect Bluetooth connection
+// ? Disconnect Bluetooth connection
 async function disconnect() {
     try {
         addLog("正在断开连接...", "info");
@@ -503,7 +506,7 @@ async function disconnect() {
     }
 }
 
-// Arm control commands
+// ? Arm control commands
 async function grabArm() {
     if (!isConnected) {
         addLog("设备未连接，无法执行抓取", "warning");
@@ -519,6 +522,7 @@ async function grabArm() {
     }
 }
 
+// ? Arm release commands
 async function releaseArm() {
     if (!isConnected) {
         addLog("设备未连接，无法执行放开", "warning");
@@ -534,6 +538,7 @@ async function releaseArm() {
     }
 }
 
+// ? Arm throw commands
 async function throwArm() {
     if (!isConnected) {
         addLog("设备未连接，无法执行投掷", "warning");
@@ -549,7 +554,7 @@ async function throwArm() {
     }
 }
 
-// Application initialization
+// ! Application initialization
 window.addEventListener("DOMContentLoaded", async () => {
     addLog("虚拟摇杆应用已启动", "success");
     
@@ -601,7 +606,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     window.addEventListener("mouseup", stopJoystick);
     
     // Enhanced touch events for multi-finger stability
-    // 在摇杆区域监听touch事件，支持多指操作
     joystickBase.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
