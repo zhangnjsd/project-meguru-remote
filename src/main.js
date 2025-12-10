@@ -20,10 +20,9 @@ const liftingSlider = document.querySelector("#lifting-slider");
 const liftingValue = document.querySelector("#lifting-value");
 
 // * Configuration constants
-const DEFAULT_CONNECT_DEVICE_MAC = "98:88:E0:10:BC:3E";
+const DEFAULT_CONNECT_DEVICE_MAC = "3c:0f:02:d1:d3:8a";
 const JOYSTICK_ZERO_VALUE = 0x7F; // * 127 as mid value (0)
-const POLL_INTERVAL = 30; // ! Poll controller status every 30ms
-const SEND_INTERVAL = 20; // ! Send joystick data every 20ms
+const POLL_INTERVAL = 1000; // ! Poll controller status every 1s
 const LIFTING_MIN = 0x00;
 const LIFTING_MAX = 0xFF;
 
@@ -31,7 +30,6 @@ const LIFTING_MAX = 0xFF;
 let isConnected = false;
 let controllerUsable = false;
 let pollIntervalId = null;
-let sendIntervalId = null;
 let liftingPendingValue = null;
 let liftingSendTimeoutId = null;
 
@@ -39,6 +37,8 @@ let liftingSendTimeoutId = null;
 let joystickActive = false;
 let currentX = JOYSTICK_ZERO_VALUE;
 let currentY = JOYSTICK_ZERO_VALUE;
+let lastSentX = JOYSTICK_ZERO_VALUE;
+let lastSentY = JOYSTICK_ZERO_VALUE;
 
 // * Track active touches for multi-finger stability
 let activeTouches = new Map();
@@ -123,22 +123,11 @@ function updateControllerStatus(usable) {
         controllerStatus.style.color = "#28a745";
         joystickContainer.classList.remove("joystick-disabled");
         setLiftingSliderEnabled(true);
-        
-        // Start sending joystick data
-        if (!sendIntervalId) {
-            sendIntervalId = setInterval(sendJoystickData, SEND_INTERVAL);
-        }
     } else {
         controllerStatus.textContent = "● 不可操控";
         controllerStatus.style.color = "#dc3545";
         joystickContainer.classList.add("joystick-disabled");
         setLiftingSliderEnabled(false);
-        
-        // Stop sending joystick data
-        if (sendIntervalId) {
-            clearInterval(sendIntervalId);
-            sendIntervalId = null;
-        }
         
         // Reset joystick to center
         resetJoystick();
@@ -170,6 +159,8 @@ function resetJoystick() {
     currentX = JOYSTICK_ZERO_VALUE;
     currentY = JOYSTICK_ZERO_VALUE;
     updateJoystickDisplay(currentX, currentY);
+    // 松开时发送中心位置数据
+    sendJoystickDataIfChanged();
     // Remove transition after animation completes
     setTimeout(() => {
         joystickStick.style.transition = "none";
@@ -186,11 +177,8 @@ function positionToValue(position, max) {
 
 // ? Handle joystick movement
 function handleJoystickMove(clientX, clientY) {
-    // Allow joystick movement at any time for debugging/testing
-    // Ensure no transition during active movement
-    if (joystickStick.style.transition !== "none") {
-        joystickStick.style.transition = "none";
-    }
+    // 移除过渡效果以提高响应速度
+    joystickStick.style.transition = "none";
     
     const rect = joystickBase.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -222,10 +210,16 @@ function handleJoystickMove(clientX, clientY) {
     const normalizedX = deltaX / maxRadius;
     const normalizedY = deltaY / maxRadius;
     
-    currentX = positionToValue(normalizedX, maxRadius);
-    currentY = positionToValue(normalizedY, maxRadius);
+    const newX = positionToValue(normalizedX, maxRadius);
+    const newY = positionToValue(normalizedY, maxRadius);
     
-    updateJoystickDisplay(currentX, currentY);
+    // 只在数据变化时发送
+    if (newX !== currentX || newY !== currentY) {
+        currentX = newX;
+        currentY = newY;
+        updateJoystickDisplay(currentX, currentY);
+        sendJoystickDataIfChanged();
+    }
 }
 
 // ? Start joystick interaction
@@ -247,8 +241,9 @@ function startJoystick(event) {
 function moveJoystick(event) {
     if (!joystickActive) return;
     
-    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
-    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    // 鼠标移动时立即处理
+    const clientX = event.clientX;
+    const clientY = event.clientY;
     handleJoystickMove(clientX, clientY);
     
     if (event.preventDefault) {
@@ -314,12 +309,8 @@ function handleTouchMove(event) {
             return;
         }
 
-        const joystickTouchX = primaryTouch.clientX;
-        const joystickTouchY = primaryTouch.clientY;
-
-        if (isTouchInJoystick(joystickTouchX, joystickTouchY)) {
-            handleJoystickMove(joystickTouchX, joystickTouchY);
-        }
+        // 不限制区域，持续跟踪手指移动以提高灵敏度
+        handleJoystickMove(primaryTouch.clientX, primaryTouch.clientY);
 
         if (event.touches.length === 1 && event.cancelable) {
             event.preventDefault();
@@ -373,17 +364,20 @@ function closeLogModal() {
     logModal.classList.remove("active");
 }
 
-// ? Send joystick data to backend
-async function sendJoystickData() {
+// ? Send joystick data to backend only when changed
+async function sendJoystickDataIfChanged() {
     if (!isConnected || !controllerUsable) return;
+    
+    // 只在数据变化时发送
+    if (currentX === lastSentX && currentY === lastSentY) return;
     
     try {
         await invoke("send_joystick_data", { x: currentX, y: currentY });
+        lastSentX = currentX;
+        lastSentY = currentY;
+        console.log(`发送摇杆数据: X=0x${currentX.toString(16).toUpperCase().padStart(2, '0')}, Y=0x${currentY.toString(16).toUpperCase().padStart(2, '0')}`);
     } catch (error) {
-        // Only log significant errors, not every send failure
-        if (error.includes("not usable")) {
-            addLog(`发送失败: ${error}`, "warning");
-        }
+        addLog(`发送摇杆数据失败: ${error}`, "error");
     }
 }
 
@@ -420,9 +414,14 @@ async function pollControllerStatus() {
     
     try {
         const usable = await invoke("poll_controller_status");
+        // 只在状态变化时记录日志
+        if (usable !== controllerUsable) {
+            addLog(`控制器状态变化: ${usable ? '可操控' : '不可操控'}`, usable ? "success" : "warning");
+        }
         updateControllerStatus(usable);
     } catch (error) {
-        // Silently handle errors during polling
+        // 记录轮询错误
+        addLog(`轮询状态失败: ${error}`, "error");
         updateControllerStatus(false);
     }
 }
@@ -441,11 +440,6 @@ function stopPolling() {
         clearInterval(pollIntervalId);
         pollIntervalId = null;
         addLog("停止轮询控制器状态", "info");
-    }
-    
-    if (sendIntervalId) {
-        clearInterval(sendIntervalId);
-        sendIntervalId = null;
     }
 }
 
@@ -472,6 +466,15 @@ async function autoConnect() {
         addLog("连接成功", "success");
         
         updateConnectionStatus(true, DEFAULT_CONNECT_DEVICE_MAC);
+        
+        // 连接成功后立即进行一次状态轮询测试
+        addLog("正在测试设备通信...", "info");
+        try {
+            const usable = await invoke("poll_controller_status");
+            addLog(`设备通信测试成功，控制器状态: ${usable ? '可操控' : '不可操控'}`, "success");
+        } catch (pollError) {
+            addLog(`设备通信测试失败: ${pollError}`, "error");
+        }
     } catch (error) {
         addLog(`自动连接失败: ${error}`, "error");
         updateConnectionStatus(false);
