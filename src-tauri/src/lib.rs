@@ -21,6 +21,7 @@ const fn transfer_standard_u16_to_u128(value: u16) -> Uuid {
 const SERVICE_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xD4, 0xE6, 0xC6, 0xA1]);
 const X_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x6B, 0xB3, 0x91, 0x05]);
 const Y_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x5D, 0xD1, 0x09, 0xD3]);
+const R_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x4E, 0xC5, 0x2E, 0xF4]);
 const CONTROLLER_USABLE_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xB3, 0xC2, 0xA1, 0xE7]);
 const LIFTING_ARM_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA7]);
 const MCLAW_SWITCH_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xC4, 0xD4, 0xD3, 0xE2]);
@@ -30,6 +31,7 @@ const MAXIUM_DISCOVER_PERIOD: u64 = 10000; // 10 seconds timeout for scanning
 pub struct ArmData {
     pub x: u16,
     pub y: u16,
+    pub r: u16,
     pub controller_usable: bool,
 }
 
@@ -135,7 +137,7 @@ async fn poll_controller_status(state: tauri::State<'_, AppState>) -> Result<boo
     Device expects 2-byte data format: [0x00, value]
 */
 #[tauri::command]
-async fn send_joystick_data(state: tauri::State<'_, AppState>, x: u8, y: u8) -> Result<String, String> {
+async fn send_joystick_data(state: tauri::State<'_, AppState>, x: u8, y: u8, r: u8) -> Result<String, String> {
     // Check if controller is usable before sending
     let usable = {
         let controller_usable = state.controller_usable.lock().unwrap();
@@ -146,7 +148,7 @@ async fn send_joystick_data(state: tauri::State<'_, AppState>, x: u8, y: u8) -> 
         return Err("Controller is not usable, cannot send joystick data".to_string());
     }
     
-    info!("Sending joystick data: X=0x{:02X}00, Y=0x{:02X}00", x, y);
+    info!("Sending joystick data: X=0x{:02X}00, Y=0x{:02X}00, R=0x{:02X}00", x, y, r);
     
     // Send X value (2-byte format: [x, 0x00] - little endian)
     write_data(X_CHARACTERISTIC_UUID, SERVICE_UUID, vec![x, 0x00])
@@ -167,8 +169,17 @@ async fn send_joystick_data(state: tauri::State<'_, AppState>, x: u8, y: u8) -> 
         })?;
     
     info!("Y value sent successfully");
+
+    write_data(R_CHARACTERISTIC_UUID, SERVICE_UUID, vec![r, 0x00])
+        .await
+        .map_err(|e| {
+            info!("Failed to write R value: {}", e);
+            format!("Failed to write R value: {}", e)
+        })?;
     
-    Ok(format!("Joystick data sent: X={}, Y={}", x, y))
+    info!("R value sent successfully");
+    
+    Ok(format!("Joystick data sent: X={}, Y={}, R={}", x, y, r))
 }
 
 #[tauri::command]
@@ -260,6 +271,9 @@ async fn disconnect(state: tauri::State<'_, AppState>) -> Result<String, String>
     if let Err(e) = write_data(Y_CHARACTERISTIC_UUID, SERVICE_UUID, vec![JOYSTICK_ZERO_VALUE, 0x00]).await {
         info!("Failed to send Y zero value: {}", e);
     }
+    if let Err(e) = write_data(R_CHARACTERISTIC_UUID, SERVICE_UUID, vec![JOYSTICK_ZERO_VALUE, 0x00]).await {
+        info!("Failed to send R zero value: {}", e);
+    }
     
     let handler = tauri_plugin_blec::get_handler()
         .map_err(|e| format!("Get handle failed: {}", e))?;
@@ -290,7 +304,7 @@ async fn write_data(char_uuid: Uuid, service: Uuid, data: Vec<u8>) -> Result<Str
         })?;
 
     handler
-        .send_data(char_uuid, Some(service), &data, WriteType::WithResponse)
+        .send_data(char_uuid, Some(service), &data, WriteType::WithoutResponse)
         .await
         .map_err(|e| {
             info!("write_data: Send failed - Char: {}, Service: {}, Data: {:?}, Error: {}", char_uuid, service, data, e);

@@ -18,6 +18,8 @@ const releaseBtn = document.querySelector("#release-btn");
 const throwBtn = document.querySelector("#throw-btn");
 const liftingSlider = document.querySelector("#lifting-slider");
 const liftingValue = document.querySelector("#lifting-value");
+const rotationSlider = document.querySelector("#rotation-slider");
+const rotationValue = document.querySelector("#rotation-value");
 
 // * Configuration constants
 const DEFAULT_CONNECT_DEVICE_MAC = "3c:0f:02:d1:d3:8a";
@@ -37,8 +39,14 @@ let liftingSendTimeoutId = null;
 let joystickActive = false;
 let currentX = JOYSTICK_ZERO_VALUE;
 let currentY = JOYSTICK_ZERO_VALUE;
+let currentR = JOYSTICK_ZERO_VALUE;
 let lastSentX = JOYSTICK_ZERO_VALUE;
 let lastSentY = JOYSTICK_ZERO_VALUE;
+let lastSentR = JOYSTICK_ZERO_VALUE;
+let isJoystickSending = false;
+let joystickSendIntervalId = null;
+const JOYSTICK_SEND_INTERVAL = 5; // 5ms
+let zeroResendCount = 0; // 重发计数器，确保归零数据送达
 
 // * Track active touches for multi-finger stability
 let activeTouches = new Map();
@@ -99,18 +107,24 @@ function updateConnectionStatus(connected, address = null) {
         disconnectBtn.disabled = false;
         connectDefaultBtn.disabled = true;
         setLiftingSliderEnabled(controllerUsable);
+        setRotationSliderEnabled(controllerUsable);
         
         // Start polling controller status
         startPolling();
+        // Start joystick data loop
+        startJoystickDataLoop();
     } else {
         connectionStatus.textContent = "✗ 未连接";
         connectionStatus.style.color = "#dc3545";
         disconnectBtn.disabled = true;
         connectDefaultBtn.disabled = false;
         setLiftingSliderEnabled(false);
+        setRotationSliderEnabled(false);
         
         // Stop polling
         stopPolling();
+        // Stop joystick data loop
+        stopJoystickDataLoop();
         updateControllerStatus(false);
     }
 }
@@ -123,15 +137,27 @@ function updateControllerStatus(usable) {
         controllerStatus.style.color = "#28a745";
         joystickContainer.classList.remove("joystick-disabled");
         setLiftingSliderEnabled(true);
+        setRotationSliderEnabled(true);
     } else {
         controllerStatus.textContent = "● 不可操控";
         controllerStatus.style.color = "#dc3545";
         joystickContainer.classList.add("joystick-disabled");
         setLiftingSliderEnabled(false);
+        setRotationSliderEnabled(false);
         
         // Reset joystick to center
         resetJoystick();
+        // Reset rotation slider to center
+        resetRotationSlider();
     }
+}
+
+// ? Reset rotation slider to center position
+function resetRotationSlider() {
+    if (!rotationSlider) return;
+    rotationSlider.value = JOYSTICK_ZERO_VALUE;
+    updateRotationDisplay(JOYSTICK_ZERO_VALUE);
+    currentR = JOYSTICK_ZERO_VALUE;
 }
 
 // ? Update joystick value display
@@ -145,9 +171,20 @@ function setLiftingSliderEnabled(enabled) {
     liftingSlider.classList.toggle("slider-disabled", !active);
 }
 
+function setRotationSliderEnabled(enabled) {
+    if (!rotationSlider) return;
+    const active = enabled && isConnected;
+    rotationSlider.classList.toggle("slider-disabled", !active);
+}
+
 function updateLiftingDisplay(value) {
     if (!liftingValue) return;
     liftingValue.textContent = `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
+}
+
+function updateRotationDisplay(value) {
+    if (!rotationValue) return;
+    rotationValue.textContent = `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
 }
 
 // ? Reset joystick to center position
@@ -159,8 +196,10 @@ function resetJoystick() {
     currentX = JOYSTICK_ZERO_VALUE;
     currentY = JOYSTICK_ZERO_VALUE;
     updateJoystickDisplay(currentX, currentY);
-    // 松开时发送中心位置数据
-    sendJoystickDataIfChanged();
+    
+    // 设置重发计数，确保归零数据送达
+    zeroResendCount = 5;
+    
     // Remove transition after animation completes
     setTimeout(() => {
         joystickStick.style.transition = "none";
@@ -177,7 +216,6 @@ function positionToValue(position, max) {
 
 // ? Handle joystick movement
 function handleJoystickMove(clientX, clientY) {
-    // 移除过渡效果以提高响应速度
     joystickStick.style.transition = "none";
     
     const rect = joystickBase.getBoundingClientRect();
@@ -218,7 +256,8 @@ function handleJoystickMove(clientX, clientY) {
         currentX = newX;
         currentY = newY;
         updateJoystickDisplay(currentX, currentY);
-        sendJoystickDataIfChanged();
+        // 不再直接发送，由定时器统一发送
+        // sendJoystickDataIfChanged();
     }
 }
 
@@ -368,16 +407,46 @@ function closeLogModal() {
 async function sendJoystickDataIfChanged() {
     if (!isConnected || !controllerUsable) return;
     
-    // 只在数据变化时发送
-    if (currentX === lastSentX && currentY === lastSentY) return;
+    const isZero = currentX === JOYSTICK_ZERO_VALUE && currentY === JOYSTICK_ZERO_VALUE && currentR === JOYSTICK_ZERO_VALUE;
+    const hasChanged = currentX !== lastSentX || currentY !== lastSentY || currentR !== lastSentR;
+
+    // 只在数据变化时发送，或者是归零重发
+    if (!hasChanged && (!isZero || zeroResendCount <= 0)) return;
+    
+    // 如果正在发送中，直接跳过（弃包）
+    if (isJoystickSending) return;
+
+    isJoystickSending = true;
     
     try {
-        await invoke("send_joystick_data", { x: currentX, y: currentY });
+        await invoke("send_joystick_data", { x: currentX, y: currentY, r: currentR });
         lastSentX = currentX;
         lastSentY = currentY;
-        console.log(`发送摇杆数据: X=0x${currentX.toString(16).toUpperCase().padStart(2, '0')}, Y=0x${currentY.toString(16).toUpperCase().padStart(2, '0')}`);
+        lastSentR = currentR;
+        
+        // 如果是归零数据，递减重发计数
+        if (isZero && zeroResendCount > 0) {
+            zeroResendCount--;
+        }
+        // console.log(`发送摇杆数据: X=0x${currentX.toString(16).toUpperCase().padStart(2, '0')}, Y=0x${currentY.toString(16).toUpperCase().padStart(2, '0')}, R=0x${currentR.toString(16).toUpperCase().padStart(2, '0')}`);
     } catch (error) {
-        addLog(`发送摇杆数据失败: ${error}`, "error");
+        // addLog(`发送摇杆数据失败: ${error}`, "error");
+    } finally {
+        isJoystickSending = false;
+    }
+}
+
+// ? Start joystick data loop
+function startJoystickDataLoop() {
+    if (joystickSendIntervalId) return;
+    joystickSendIntervalId = setInterval(sendJoystickDataIfChanged, JOYSTICK_SEND_INTERVAL);
+}
+
+// ? Stop joystick data loop
+function stopJoystickDataLoop() {
+    if (joystickSendIntervalId) {
+        clearInterval(joystickSendIntervalId);
+        joystickSendIntervalId = null;
     }
 }
 
@@ -406,6 +475,13 @@ async function sendLiftingArmValue(value) {
     } catch (error) {
         addLog(`滑杆发送失败: ${error}`, "error");
     }
+}
+
+// ? Queue rotation value to send with throttling
+function queueRotationSend(value) {
+    if (!isConnected || !controllerUsable) return;
+    // Update currentR directly, let the loop handle sending
+    currentR = value;
 }
 
 // ? Poll controller status from device
@@ -593,6 +669,32 @@ window.addEventListener("DOMContentLoaded", async () => {
         setLiftingSliderEnabled(false);
         liftingSlider.addEventListener("input", handleLiftingInput);
         liftingSlider.addEventListener("change", handleLiftingInput);
+    }
+
+    // Bind rotation slider events
+    if (rotationSlider) {
+        const handleRotationInput = (event) => {
+            const value = Number(event.target.value);
+            updateRotationDisplay(value);
+            queueRotationSend(value);
+        };
+        const handleRotationEnd = () => {
+            // Reset to center when released
+            rotationSlider.value = JOYSTICK_ZERO_VALUE;
+            updateRotationDisplay(JOYSTICK_ZERO_VALUE);
+            currentR = JOYSTICK_ZERO_VALUE;
+            // 设置重发计数，确保归零数据送达
+            zeroResendCount = 5;
+        };
+        rotationSlider.min = 0;
+        rotationSlider.max = 255;
+        rotationSlider.value = JOYSTICK_ZERO_VALUE;
+        updateRotationDisplay(JOYSTICK_ZERO_VALUE);
+        setRotationSliderEnabled(false);
+        rotationSlider.addEventListener("input", handleRotationInput);
+        rotationSlider.addEventListener("change", handleRotationEnd);
+        rotationSlider.addEventListener("mouseup", handleRotationEnd);
+        rotationSlider.addEventListener("touchend", handleRotationEnd);
     }
 
     // Bind log modal controls
