@@ -7,7 +7,7 @@
     "tauri": "tauri"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2"
+    "@tauri-apps/cli": "^2.9.2"
   },
   "dependencies": {
     "@mnlphlp/plugin-blec": "^0.8.1",

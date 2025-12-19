@@ -13,16 +13,26 @@ const logContainer = document.querySelector("#log-container");
 const logBall = document.querySelector("#log-ball");
 const logModal = document.querySelector("#log-modal");
 const closeLogBtn = document.querySelector("#close-log-btn");
-const grabBtn = document.querySelector("#grab-btn");
-const releaseBtn = document.querySelector("#release-btn");
+// const grabBtn = document.querySelector("#grab-btn");
+// const releaseBtn = document.querySelector("#release-btn");
 const throwBtn = document.querySelector("#throw-btn");
-const liftingSlider = document.querySelector("#lifting-slider");
+const startBtn = document.querySelector("#start-btn");
+const liftingSliderClaw = document.querySelector("#lifting-slider-claw");
+const liftingSliderA = document.querySelector("#lifting-slider-a");
+const liftingSliderB = document.querySelector("#lifting-slider-b");
+const liftingSliderC = document.querySelector("#lifting-slider-c");
 const liftingValue = document.querySelector("#lifting-value");
 const rotationSlider = document.querySelector("#rotation-slider");
 const rotationValue = document.querySelector("#rotation-value");
+const deviceSelect = document.querySelector("#device-select");
+const customMacInput = document.querySelector("#custom-mac-input");
 
 // * Configuration constants
-const DEFAULT_CONNECT_DEVICE_MAC = "3c:0f:02:d1:d3:8a";
+let KNOWN_DEVICES = [
+    { name: "Haruka", address: "3C:0F:02:D1:D4:D2" },
+    { name: "Meguri", address: "3C:0F:02:D1:E2:56" },
+];
+
 const JOYSTICK_ZERO_VALUE = 0x7F; // * 127 as mid value (0)
 const POLL_INTERVAL = 1000; // ! Poll controller status every 1s
 const LIFTING_MIN = 0x00;
@@ -32,8 +42,8 @@ const LIFTING_MAX = 0xFF;
 let isConnected = false;
 let controllerUsable = false;
 let pollIntervalId = null;
-let liftingPendingValue = null;
-let liftingSendTimeoutId = null;
+let liftingPendingValues = { Claw: null, A: null, B: null, C: null };
+let liftingSendTimeoutIds = { Claw: null, A: null, B: null, C: null };
 
 // * Joystick state
 let joystickActive = false;
@@ -45,8 +55,8 @@ let lastSentY = JOYSTICK_ZERO_VALUE;
 let lastSentR = JOYSTICK_ZERO_VALUE;
 let isJoystickSending = false;
 let joystickSendIntervalId = null;
-const JOYSTICK_SEND_INTERVAL = 5; // 5ms
-let zeroResendCount = 0; // 重发计数器，确保归零数据送达
+const JOYSTICK_SEND_INTERVAL = 30; // 30ms (approx 33Hz)
+let zeroResendCount = 0; // Resend counter
 
 // * Track active touches for multi-finger stability
 let activeTouches = new Map();
@@ -166,9 +176,11 @@ function updateJoystickDisplay(x, y) {
 }
 
 function setLiftingSliderEnabled(enabled) {
-    if (!liftingSlider) return;
     const active = enabled && isConnected;
-    liftingSlider.classList.toggle("slider-disabled", !active);
+    if (liftingSliderClaw) liftingSliderClaw.classList.toggle("slider-disabled", !active);
+    if (liftingSliderA) liftingSliderA.classList.toggle("slider-disabled", !active);
+    if (liftingSliderB) liftingSliderB.classList.toggle("slider-disabled", !active);
+    if (liftingSliderC) liftingSliderC.classList.toggle("slider-disabled", !active);
 }
 
 function setRotationSliderEnabled(enabled) {
@@ -197,7 +209,7 @@ function resetJoystick() {
     currentY = JOYSTICK_ZERO_VALUE;
     updateJoystickDisplay(currentX, currentY);
     
-    // 设置重发计数，确保归零数据送达
+    // Resend counter for zero position
     zeroResendCount = 5;
     
     // Remove transition after animation completes
@@ -280,7 +292,6 @@ function startJoystick(event) {
 function moveJoystick(event) {
     if (!joystickActive) return;
     
-    // 鼠标移动时立即处理
     const clientX = event.clientX;
     const clientY = event.clientY;
     handleJoystickMove(clientX, clientY);
@@ -348,7 +359,6 @@ function handleTouchMove(event) {
             return;
         }
 
-        // 不限制区域，持续跟踪手指移动以提高灵敏度
         handleJoystickMove(primaryTouch.clientX, primaryTouch.clientY);
 
         if (event.touches.length === 1 && event.cancelable) {
@@ -410,10 +420,8 @@ async function sendJoystickDataIfChanged() {
     const isZero = currentX === JOYSTICK_ZERO_VALUE && currentY === JOYSTICK_ZERO_VALUE && currentR === JOYSTICK_ZERO_VALUE;
     const hasChanged = currentX !== lastSentX || currentY !== lastSentY || currentR !== lastSentR;
 
-    // 只在数据变化时发送，或者是归零重发
     if (!hasChanged && (!isZero || zeroResendCount <= 0)) return;
-    
-    // 如果正在发送中，直接跳过（弃包）
+
     if (isJoystickSending) return;
 
     isJoystickSending = true;
@@ -424,13 +432,10 @@ async function sendJoystickDataIfChanged() {
         lastSentY = currentY;
         lastSentR = currentR;
         
-        // 如果是归零数据，递减重发计数
         if (isZero && zeroResendCount > 0) {
+            // ! Safely control resend count to avoid overflow
             zeroResendCount--;
         }
-        // console.log(`发送摇杆数据: X=0x${currentX.toString(16).toUpperCase().padStart(2, '0')}, Y=0x${currentY.toString(16).toUpperCase().padStart(2, '0')}, R=0x${currentR.toString(16).toUpperCase().padStart(2, '0')}`);
-    } catch (error) {
-        // addLog(`发送摇杆数据失败: ${error}`, "error");
     } finally {
         isJoystickSending = false;
     }
@@ -451,29 +456,29 @@ function stopJoystickDataLoop() {
 }
 
 // ? Queue lifting arm value to send with throttling
-function queueLiftingSend(value) {
+function queueLiftingSend(channel, value) {
     if (!isConnected || !controllerUsable) return;
-    liftingPendingValue = value;
-    if (liftingSendTimeoutId) {
+    liftingPendingValues[channel] = value;
+    if (liftingSendTimeoutIds[channel]) {
         return;
     }
-    liftingSendTimeoutId = setTimeout(async () => {
-        liftingSendTimeoutId = null;
-        if (liftingPendingValue === null) {
+    liftingSendTimeoutIds[channel] = setTimeout(async () => {
+        liftingSendTimeoutIds[channel] = null;
+        if (liftingPendingValues[channel] === null) {
             return;
         }
-        const valueToSend = liftingPendingValue;
-        liftingPendingValue = null;
-        await sendLiftingArmValue(valueToSend);
+        const valueToSend = liftingPendingValues[channel];
+        liftingPendingValues[channel] = null;
+        await sendLiftingArmValue(channel, valueToSend);
     }, 40);
 }
 
 // ? Send lifting arm value to backend
-async function sendLiftingArmValue(value) {
+async function sendLiftingArmValue(channel, value) {
     try {
-        await invoke("send_lifting_arm_value", { value });
+        await invoke("send_lifting_arm_value", { channel, value });
     } catch (error) {
-        addLog(`滑杆发送失败: ${error}`, "error");
+        addLog(`滑杆 ${channel} 发送失败: ${error}`, "error");
     }
 }
 
@@ -490,13 +495,11 @@ async function pollControllerStatus() {
     
     try {
         const usable = await invoke("poll_controller_status");
-        // 只在状态变化时记录日志
         if (usable !== controllerUsable) {
             addLog(`控制器状态变化: ${usable ? '可操控' : '不可操控'}`, usable ? "success" : "warning");
         }
         updateControllerStatus(usable);
     } catch (error) {
-        // 记录轮询错误
         addLog(`轮询状态失败: ${error}`, "error");
         updateControllerStatus(false);
     }
@@ -633,9 +636,57 @@ async function throwArm() {
     }
 }
 
+// ? Role start command
+async function startRole() {
+    if (!isConnected) {
+        addLog("设备未连接，无法执行起步", "warning");
+        return;
+    }
+
+    try {
+        addLog("执行起步命令...", "info");
+        await invoke("send_arm_command", { command: "start" });
+        addLog("✓ 角色已起步", "success");
+    } catch (error) {
+        addLog(`起步失败: ${error}`, "error");
+    }
+}
+
+// ? Initialize device selection dropdown
+async function initDeviceSelection() {
+    try {
+        // Clear existing options except the first one
+        while (deviceSelect.options.length > 1) {
+            deviceSelect.remove(1);
+        }
+        
+        // Add known devices
+        // Use a Set to avoid duplicates
+        const seen = new Set();
+        
+        KNOWN_DEVICES.forEach(device => {
+            if (device.address && !seen.has(device.address)) {
+                const option = document.createElement("option");
+                option.value = device.address;
+                option.textContent = `${device.name} (${device.address})`; // Show address in name for clarity
+                // Default is not selected, so the placeholder remains selected
+                deviceSelect.appendChild(option);
+                seen.add(device.address);
+            }
+        });
+        
+        addLog(`加载了 ${seen.size} 个预设设备`, "info");
+    } catch (error) {
+        addLog(`初始化设备列表失败: ${error}`, "error");
+    }
+}
+
 // ! Application initialization
 window.addEventListener("DOMContentLoaded", async () => {
     addLog("虚拟摇杆应用已启动", "success");
+    
+    // Initialize device selection
+    await initDeviceSelection();
     
     // Prevent default gestures and zooming
     document.addEventListener('gesturestart', (e) => e.preventDefault(), false);
@@ -649,27 +700,43 @@ window.addEventListener("DOMContentLoaded", async () => {
     }, { passive: false });
 
     // Bind connection buttons
-    connectDefaultBtn.addEventListener("click", () => connectToDevice(DEFAULT_CONNECT_DEVICE_MAC));
+    connectDefaultBtn.addEventListener("click", () => {
+        const selected = deviceSelect.value;
+        const custom = customMacInput.value.trim();
+        const target = custom || selected;
+
+        if (target) {
+            connectToDevice(target);
+        } else {
+            addLog("请选择或输入设备地址", "warning");
+        }
+    });
     disconnectBtn.addEventListener("click", disconnect);
     
-    // Bind arm control buttons with immediate touch response
-    bindInstantButton(grabBtn, grabArm);
-    bindInstantButton(releaseBtn, releaseArm);
     bindInstantButton(throwBtn, throwArm);
-    if (liftingSlider) {
-        const handleLiftingInput = (event) => {
-            const value = Number(event.target.value);
-            updateLiftingDisplay(value);
-            queueLiftingSend(value);
-        };
-        liftingSlider.min = LIFTING_MIN;
-        liftingSlider.max = LIFTING_MAX;
-        liftingSlider.value = LIFTING_MIN;
-        updateLiftingDisplay(LIFTING_MIN);
-        setLiftingSliderEnabled(false);
-        liftingSlider.addEventListener("input", handleLiftingInput);
-        liftingSlider.addEventListener("change", handleLiftingInput);
-    }
+    bindInstantButton(startBtn, startRole);
+    const liftingSliders = [
+        { el: liftingSliderClaw, channel: 'Claw' },
+        { el: liftingSliderA, channel: 'A' },
+        { el: liftingSliderB, channel: 'B' },
+        { el: liftingSliderC, channel: 'C' }
+    ];
+    liftingSliders.forEach(({ el, channel }) => {
+        if (el) {
+            const handleLiftingInput = (event) => {
+                const value = Number(event.target.value);
+                updateLiftingDisplay(value);
+                queueLiftingSend(channel, value);
+            };
+            el.min = LIFTING_MIN;
+            el.max = LIFTING_MAX;
+            el.value = LIFTING_MIN;
+            el.addEventListener("input", handleLiftingInput);
+            el.addEventListener("change", handleLiftingInput);
+        }
+    });
+    updateLiftingDisplay(LIFTING_MIN);
+    setLiftingSliderEnabled(false);
 
     // Bind rotation slider events
     if (rotationSlider) {
@@ -683,7 +750,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             rotationSlider.value = JOYSTICK_ZERO_VALUE;
             updateRotationDisplay(JOYSTICK_ZERO_VALUE);
             currentR = JOYSTICK_ZERO_VALUE;
-            // 设置重发计数，确保归零数据送达
+            // ? Set resend counter
             zeroResendCount = 5;
         };
         rotationSlider.min = 0;
@@ -718,5 +785,4 @@ window.addEventListener("DOMContentLoaded", async () => {
     
     // Check permissions and auto connect
     await checkPermissions();
-    await autoConnect();
 });

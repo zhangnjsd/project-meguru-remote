@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{sync::Mutex};
 use tokio::sync::mpsc;
 use tracing::info;
 use uuid::Uuid;
@@ -23,10 +23,14 @@ const X_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x
 const Y_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x5D, 0xD1, 0x09, 0xD3]);
 const R_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x4E, 0xC5, 0x2E, 0xF4]);
 const CONTROLLER_USABLE_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xB3, 0xC2, 0xA1, 0xE7]);
-const LIFTING_ARM_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA7]);
+const LIFTING_ARM_CHARACTERISTIC_A_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA7]);
+const LIFTING_ARM_CHARACTERISTIC_B_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA8]); // ! TODO: Verify UUID
+const LIFTING_ARM_CHARACTERISTIC_C_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA9]); // ! TODO: Verify UUID
 const MCLAW_SWITCH_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xC4, 0xD4, 0xD3, 0xE2]);
-const DEVICE_ADDRESS: &str = "3c:0f:02:d1:d3:8a";
-const MAXIUM_DISCOVER_PERIOD: u64 = 10000; // 10 seconds timeout for scanning
+const ROLE_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x00, 0x00, 0x00, 0x91]);
+//const DEVICE_ADDRESS: &str = "3c:0f:02:d1:d3:8a";
+const DEVICE_ADDRESS: &str = "3c:0f:02:d1:e2:56"; // Default MAC address of the target device
+const MAXIUM_DISCOVER_PERIOD: u64 = 20000; // 20 seconds timeout for scanning
 
 pub struct ArmData {
     pub x: u16,
@@ -134,7 +138,7 @@ async fn poll_controller_status(state: tauri::State<'_, AppState>) -> Result<boo
 /*
     Send joystick X and Y values to device.
     x and y should be in range 0x00 to 0xFF, with 0x7F being center/zero position.
-    Device expects 2-byte data format: [0x00, value]
+    Device expects 2-byte data format: [value, 0x00]
 */
 #[tauri::command]
 async fn send_joystick_data(state: tauri::State<'_, AppState>, x: u8, y: u8, r: u8) -> Result<String, String> {
@@ -148,60 +152,59 @@ async fn send_joystick_data(state: tauri::State<'_, AppState>, x: u8, y: u8, r: 
         return Err("Controller is not usable, cannot send joystick data".to_string());
     }
     
-    info!("Sending joystick data: X=0x{:02X}00, Y=0x{:02X}00, R=0x{:02X}00", x, y, r);
+    // info!("Sending joystick data: X=0x{:02X}00, Y=0x{:02X}00, R=0x{:02X}00", x, y, r);
     
-    // Send X value (2-byte format: [x, 0x00] - little endian)
-    write_data(X_CHARACTERISTIC_UUID, SERVICE_UUID, vec![x, 0x00])
-        .await
-        .map_err(|e| {
-            info!("Failed to write X value: {}", e);
-            format!("Failed to write X value: {}", e)
-        })?;
-    
-    info!("X value sent successfully");
-    
-    // Send Y value (2-byte format: [y, 0x00] - little endian)
-    write_data(Y_CHARACTERISTIC_UUID, SERVICE_UUID, vec![y, 0x00])
-        .await
-        .map_err(|e| {
-            info!("Failed to write Y value: {}", e);
-            format!("Failed to write Y value: {}", e)
-        })?;
-    
-    info!("Y value sent successfully");
+    let x_fut = write_data(X_CHARACTERISTIC_UUID, SERVICE_UUID, vec![x, 0x00]);
+    let y_fut = write_data(Y_CHARACTERISTIC_UUID, SERVICE_UUID, vec![y, 0x00]);
+    let r_fut = write_data(R_CHARACTERISTIC_UUID, SERVICE_UUID, vec![r, 0x00]);
 
-    write_data(R_CHARACTERISTIC_UUID, SERVICE_UUID, vec![r, 0x00])
-        .await
-        .map_err(|e| {
-            info!("Failed to write R value: {}", e);
-            format!("Failed to write R value: {}", e)
-        })?;
-    
-    info!("R value sent successfully");
+    let (x_res, y_res, r_res) = tokio::join!(x_fut, y_fut, r_fut);
+
+    if let Err(e) = x_res {
+        // info!("Failed to write X value: {}", e);
+        return Err(format!("Failed to write X value: {}", e));
+    }
+    if let Err(e) = y_res {
+        // info!("Failed to write Y value: {}", e);
+        return Err(format!("Failed to write Y value: {}", e));
+    }
+    if let Err(e) = r_res {
+        // info!("Failed to write R value: {}", e);
+        return Err(format!("Failed to write R value: {}", e));
+    }
     
     Ok(format!("Joystick data sent: X={}, Y={}, R={}", x, y, r))
 }
 
 #[tauri::command]
-async fn send_lifting_arm_value(value: u8) -> Result<String, String> {
-    // Device expects 2-byte data format: [value, 0x00] - little endian
-    write_data(LIFTING_ARM_CHARACTERISTIC_UUID, SERVICE_UUID, vec![value, 0x00])
-        .await
-        .map_err(|e| format!("Failed to write lifting arm value: {}", e))?;
+async fn send_lifting_arm_value(channel: String, value: u8) -> Result<String, String> {
+    let uuid = match channel.as_str() {
+        "A" => LIFTING_ARM_CHARACTERISTIC_A_UUID,
+        "B" => LIFTING_ARM_CHARACTERISTIC_B_UUID,
+        "C" => LIFTING_ARM_CHARACTERISTIC_C_UUID,
+        "Claw" => MCLAW_SWITCH_CHARACTERISTIC_UUID,
+        _ => return Err(format!("Unsupported lifting arm channel: {}", channel)),
+    };
 
-    Ok(format!("Lifting arm value sent: 0x{:02X}00", value))
+    // Device expects 2-byte data format: [value, 0x00] - little endian
+    write_data(uuid, SERVICE_UUID, vec![value, 0x00])
+        .await
+        .map_err(|e| format!("Failed to write lifting arm {} value: {}", channel, e))?;
+
+    Ok(format!("Lifting arm {} value sent: 0x{:02X}00", channel, value))
 }
 
 #[tauri::command]
 async fn send_arm_command(command: String) -> Result<String, String> {
-    let value = match command.as_str() {
-        "grab" => 0x01,
-        "release" => 0x00,
+    let (uuid, value) = match command.as_str() {
+        "grab" => (MCLAW_SWITCH_CHARACTERISTIC_UUID, 0x01),
+        "release" => (MCLAW_SWITCH_CHARACTERISTIC_UUID, 0x00),
+        "start" => (ROLE_CHARACTERISTIC_UUID, 0x91),
         _ => return Err(format!("Unsupported arm command: {}", command)),
     };
 
     // Device expects 2-byte data format: [value, 0x00] - little endian
-    write_data(MCLAW_SWITCH_CHARACTERISTIC_UUID, SERVICE_UUID, vec![value, 0x00])
+    write_data(uuid, SERVICE_UUID, vec![value, 0x00])
         .await
         .map_err(|e| format!("Failed to write arm command {:?}: {}", command, e))?;
 
@@ -232,13 +235,41 @@ async fn stop_scan() -> Result<String, String> {
 async fn connect(state: tauri::State<'_, AppState>, addr: &str) -> Result<String, String> {
     info!("connect() called with address: {}", addr);
     
+    // Start scanning to find the device first
+    info!("Starting scan to find device {}...", addr);
+    let mut rx = scan_with_monitor().await?;
+
+    let target_address = addr.to_uppercase();
+    let mut found = false;
+
+    // Monitor scan results
+    while let Some(devices) = rx.recv().await {
+        for device in devices {
+            if device.address.to_uppercase() == target_address {
+                info!("Device {} found during scan, stopping scan...", target_address);
+                found = true;
+                break;
+            }
+        }
+        if found {
+            break;
+        }
+    }
+
+    // Stop scan regardless
+    let _ = stop_scan().await;
+
+    if !found {
+        return Err(format!("Device {} not found during scan", addr));
+    }
+
+    info!("Attempting connection to {}...", addr);
+
     let handler = tauri_plugin_blec::get_handler()
         .map_err(|e| {
             info!("connect: Get handle failed: {}", e);
             format!("Get handle failed: {}", e)
         })?;
-    
-    info!("Got handler, attempting connection...");
 
     match handler.connect(addr, OnDisconnectHandler::None, false).await {
         Err(e) => {
@@ -295,11 +326,11 @@ async fn disconnect(state: tauri::State<'_, AppState>) -> Result<String, String>
 
 #[tauri::command]
 async fn write_data(char_uuid: Uuid, service: Uuid, data: Vec<u8>) -> Result<String, String> {
-    info!("write_data called - Characteristic: {}, Service: {}, Data: {:?}", char_uuid, service, data);
+    // info!("write_data called - Characteristic: {}, Service: {}, Data: {:?}", char_uuid, service, data);
     
     let handler = tauri_plugin_blec::get_handler()
         .map_err(|e| {
-            info!("write_data: Get handle failed: {}", e);
+            // info!("write_data: Get handle failed: {}", e);
             format!("Get handle failed: {}", e)
         })?;
 
@@ -307,11 +338,11 @@ async fn write_data(char_uuid: Uuid, service: Uuid, data: Vec<u8>) -> Result<Str
         .send_data(char_uuid, Some(service), &data, WriteType::WithoutResponse)
         .await
         .map_err(|e| {
-            info!("write_data: Send failed - Char: {}, Service: {}, Data: {:?}, Error: {}", char_uuid, service, data, e);
+            // info!("write_data: Send failed - Char: {}, Service: {}, Data: {:?}, Error: {}", char_uuid, service, data, e);
             format!("Send {:?} to {:?} (Service: {:?}) failed: {}", data, char_uuid, service, e)
         })?;
 
-    info!("write_data: Successfully wrote data {:?} to {:?}", data, char_uuid);
+    // info!("write_data: Successfully wrote data {:?} to {:?}", data, char_uuid);
     Ok(format!("Successfully write data {:?} to {:?}.", data, service))
 }
 
@@ -431,6 +462,14 @@ fn check_ble_permissions() -> Result<bool, String> {
         .map_err(|e| format!("Permission check failed: {}", e))
 }
 
+#[tauri::command]
+async fn read_mac() -> Result<String, String> {
+    if DEVICE_ADDRESS.is_empty() {
+        return Err("Device address is not set.".to_string());
+    }
+    Ok(DEVICE_ADDRESS.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -449,26 +488,30 @@ pub fn run() {
             check_ble_permissions,
             disconnect,
             connect,
+            read_mac,
         ])
         .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
-            window.on_window_event(|event| {
-                if let tauri::WindowEvent::CloseRequested { .. } = event {
-                    tauri::async_runtime::spawn(async move {
-                        // Perform disconnect logic directly without calling disconnect function
-                        let handler = match tauri_plugin_blec::get_handler() {
-                            Ok(h) => h,
-                            Err(e) => {
-                                info!("Error occurred when existing (get handler): {}", e);
-                                return;
+            if let Some(window) = app.get_webview_window("main") {
+                window.on_window_event(|event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        tauri::async_runtime::spawn(async move {
+                            // Perform disconnect logic directly without calling disconnect function
+                            let handler = match tauri_plugin_blec::get_handler() {
+                                Ok(h) => h,
+                                Err(e) => {
+                                    info!("Error occurred when existing (get handler): {}", e);
+                                    return;
+                                }
+                            };
+                            if let Err(e) = handler.disconnect().await {
+                                info!("Error occurred when existing (disconnect): {}", e);
                             }
-                        };
-                        if let Err(e) = handler.disconnect().await {
-                            info!("Error occurred when existing (disconnect): {}", e);
-                        }
-                    });
-                }
-            });
+                        });
+                    }
+                });
+            } else {
+                info!("Failed to get main window");
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

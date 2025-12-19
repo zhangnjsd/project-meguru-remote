@@ -34,6 +34,12 @@
             <div class="section connection-section">
                 <h2>🔗 设备连接</h2>
                 <p id="connection-status">✗ 未连接</p>
+                <div class="device-selection">
+                    <select title="Select Device" id="device-select" class="device-select">
+                        <option value="">-- 选择设备 --</option>
+                    </select>
+                    <input type="text" id="custom-mac-input" placeholder="输入 MAC 地址" class="mac-input" />
+                </div>
                 <div class="button-group">
                     <button id="connect-default-btn" class="btn btn-primary">连接</button>
                     <button id="disconnect-btn" class="btn btn-secondary" disabled>断开</button>
@@ -49,18 +55,18 @@
                 <h2>🦾 机械臂控制</h2>
                 <div class="arm-control-content">
                     <div class="arm-button-group">
-                        <button id="grab-btn" class="btn btn-grab">抓取</button>
-                        <button id="release-btn" class="btn btn-release">放开</button>
-                        <button id="throw-btn" class="btn btn-throw">投掷</button>
+                        <button id="start-btn" class="btn btn-primary">起步</button>
                     </div>
                     <div class="lifting-slider-panel">
-                        <div class="lifting-slider-header">
-                            <span id="lifting-value" class="lifting-value-display">0x00</span>
-                        </div>
                         <div class="lifting-slider-track">
-                            <span class="slider-cap slider-cap-max">0xFF</span>
-                            <input id="lifting-slider" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="升降滑杆" />
-                            <span class="slider-cap slider-cap-min">0x00</span>
+                            <input id="lifting-slider-claw" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="机械爪滑杆" />
+                            <span class="discription">Mechanical Claw</span>
+                            <input id="lifting-slider-a" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="升降滑杆A" />
+                            <span class="discription">Servo A</span>
+                            <input id="lifting-slider-b" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="升降滑杆B" />
+                            <span class="discription">Servo B</span>
+                            <input id="lifting-slider-c" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="升降滑杆C" />
+                            <span class="discription">Servo C</span>
                         </div>
                     </div>
                 </div>
@@ -69,9 +75,7 @@
                         <span id="rotation-value" class="rotation-value-display">0x7F</span>
                     </div>
                     <div class="rotation-slider-track">
-                        <span class="slider-cap slider-cap-left">0x00</span>
                         <input id="rotation-slider" type="range" min="0" max="255" value="127" step="1" aria-label="R向滑杆" />
-                        <span class="slider-cap slider-cap-right">0xFF</span>
                     </div>
                 </div>
             </div>

@@ -13,17 +13,9 @@
 ## 系统架构
 
 - **前端**: HTML + CSS + JavaScript (Vanilla)
-- **桌面**: Tauri (跨平台)
-- **移动**: Android (Tauri + Rust)
-- **后端**: Rust 蓝牙驱动
+- **桌面**: Tauri
 
 ## 开发环境设置
-
-### 推荐IDE
-
-- [VS Code](https://code.visualstudio.com/)
-- [Tauri插件](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-- [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 
 ### 依赖要求
 
