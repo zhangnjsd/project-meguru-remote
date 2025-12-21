@@ -1,7 +1,7 @@
 # Project Meguru Remote
 
 <div align="center" style="text-align: center">
-    <img src="./output.png" style="width: 40%">
+    <img src="./output.png" style="width: 20%">
 </div>
 
 基于Tauri的机械设备Android蓝牙控制应用，用于控制RM目的的以ESP32S3-Devkit-C1作为被控端的设备。
