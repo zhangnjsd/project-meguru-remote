@@ -1,10 +1,15 @@
-# 机械控制系统 (Mechanical Control System)
+# Project Meguru Remote
 
-基于Tauri + Rust + Android的机械设备蓝牙控制应用
+基于Tauri的机械设备Android蓝牙控制应用，用于控制RM目的的以ESP32S3-Devkit-C1作为被控端的设备。
+
+An Android application via Tauri for mechanical control. Devices using ESP32S3-Devkit-C1 as the controlled terminal for controlling RM purposes.
+
+|![Node.js](./src/assets/Node.js.png)|![Rust](./src/assets/Rust.png)|
+|------------------------------------|------------------------------|
 
 ## 被控端(ESP32S3 DevKit-C1)
 
-[Github](https://github.com/zhangnjsd/project-meguru)
+[Project Meguru](https://github.com/zhangnjsd/project-meguru)
 
 ## 许可证
 
