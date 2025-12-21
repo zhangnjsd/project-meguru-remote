@@ -1,6 +1,6 @@
 # Project Meguru Remote
 
-<div style="width: 100%; text-align: center">
+<div align="center" style="text-align: center">
     <img src="./output.png" style="width: 40%">
 </div>
 
@@ -8,7 +8,7 @@
 
 An Android application via Tauri for mechanical control. Devices using ESP32S3-Devkit-C1 as the controlled terminal for controlling RM purposes.
 
-<div style="width: 100%; text-align: center">
+<div align="center" style="text-align: center">
     <img src="./src/assets/Node.js.png" style="height: 10rem">
     <img src="./src/assets/Rust.png" style="height: 10rem">
 </div>
