@@ -24,11 +24,11 @@ const Y_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x
 const R_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x4E, 0xC5, 0x2E, 0xF4]);
 const CONTROLLER_USABLE_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xB3, 0xC2, 0xA1, 0xE7]);
 const LIFTING_ARM_CHARACTERISTIC_A_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA7]);
-const LIFTING_ARM_CHARACTERISTIC_B_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA8]); // ! TODO: Verify UUID
-const LIFTING_ARM_CHARACTERISTIC_C_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA9]); // ! TODO: Verify UUID
+const LIFTING_ARM_CHARACTERISTIC_B_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA8]);
+const LIFTING_ARM_CHARACTERISTIC_C_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xA9]);
+const LIFTING_ARM_CHARACTERISTIC_END_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xE3, 0xD7, 0xA9, 0xAA]);
 const MCLAW_SWITCH_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0xC4, 0xD4, 0xD3, 0xE2]);
 const ROLE_CHARACTERISTIC_UUID: Uuid = Uuid::from_bytes([0x00, 0x81, 0x19, 0x14, 0x45, 0x11, 0x19, 0x19, 0x19, 0x19, 0x45, 0x11, 0x00, 0x00, 0x00, 0x91]);
-//const DEVICE_ADDRESS: &str = "3c:0f:02:d1:d3:8a";
 const DEVICE_ADDRESS: &str = "3c:0f:02:d1:e2:56"; // Default MAC address of the target device
 const MAXIUM_DISCOVER_PERIOD: u64 = 20000; // 20 seconds timeout for scanning
 
@@ -182,6 +182,7 @@ async fn send_lifting_arm_value(channel: String, value: u8) -> Result<String, St
         "A" => LIFTING_ARM_CHARACTERISTIC_A_UUID,
         "B" => LIFTING_ARM_CHARACTERISTIC_B_UUID,
         "C" => LIFTING_ARM_CHARACTERISTIC_C_UUID,
+        "END" => LIFTING_ARM_CHARACTERISTIC_END_UUID,
         "Claw" => MCLAW_SWITCH_CHARACTERISTIC_UUID,
         _ => return Err(format!("Unsupported lifting arm channel: {}", channel)),
     };
@@ -197,8 +198,6 @@ async fn send_lifting_arm_value(channel: String, value: u8) -> Result<String, St
 #[tauri::command]
 async fn send_arm_command(command: String) -> Result<String, String> {
     let (uuid, value) = match command.as_str() {
-        "grab" => (MCLAW_SWITCH_CHARACTERISTIC_UUID, 0x01),
-        "release" => (MCLAW_SWITCH_CHARACTERISTIC_UUID, 0x00),
         "start" => (ROLE_CHARACTERISTIC_UUID, 0x91),
         _ => return Err(format!("Unsupported arm command: {}", command)),
     };
@@ -462,14 +461,6 @@ fn check_ble_permissions() -> Result<bool, String> {
         .map_err(|e| format!("Permission check failed: {}", e))
 }
 
-#[tauri::command]
-async fn read_mac() -> Result<String, String> {
-    if DEVICE_ADDRESS.is_empty() {
-        return Err("Device address is not set.".to_string());
-    }
-    Ok(DEVICE_ADDRESS.to_string())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -488,7 +479,6 @@ pub fn run() {
             check_ble_permissions,
             disconnect,
             connect,
-            read_mac,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

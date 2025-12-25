@@ -13,17 +13,15 @@ const logContainer = document.querySelector("#log-container");
 const logBall = document.querySelector("#log-ball");
 const logModal = document.querySelector("#log-modal");
 const closeLogBtn = document.querySelector("#close-log-btn");
-// const grabBtn = document.querySelector("#grab-btn");
-// const releaseBtn = document.querySelector("#release-btn");
 const throwBtn = document.querySelector("#throw-btn");
 const startBtn = document.querySelector("#start-btn");
 const liftingSliderClaw = document.querySelector("#lifting-slider-claw");
 const liftingSliderA = document.querySelector("#lifting-slider-a");
 const liftingSliderB = document.querySelector("#lifting-slider-b");
 const liftingSliderC = document.querySelector("#lifting-slider-c");
+const liftingSliderEnd = document.querySelector("#lifting-slider-end");
 const liftingValue = document.querySelector("#lifting-value");
 const rotationSlider = document.querySelector("#rotation-slider");
-const rotationValue = document.querySelector("#rotation-value");
 const deviceSelect = document.querySelector("#device-select");
 const customMacInput = document.querySelector("#custom-mac-input");
 
@@ -181,6 +179,7 @@ function setLiftingSliderEnabled(enabled) {
     if (liftingSliderA) liftingSliderA.classList.toggle("slider-disabled", !active);
     if (liftingSliderB) liftingSliderB.classList.toggle("slider-disabled", !active);
     if (liftingSliderC) liftingSliderC.classList.toggle("slider-disabled", !active);
+    if (liftingSliderEnd) liftingSliderEnd.classList.toggle("slider-disabled", !active);
 }
 
 function setRotationSliderEnabled(enabled) {
@@ -192,11 +191,6 @@ function setRotationSliderEnabled(enabled) {
 function updateLiftingDisplay(value) {
     if (!liftingValue) return;
     liftingValue.textContent = `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
-}
-
-function updateRotationDisplay(value) {
-    if (!rotationValue) return;
-    rotationValue.textContent = `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
 }
 
 // ? Reset joystick to center position
@@ -546,7 +540,6 @@ async function autoConnect() {
         
         updateConnectionStatus(true, DEFAULT_CONNECT_DEVICE_MAC);
         
-        // 连接成功后立即进行一次状态轮询测试
         addLog("正在测试设备通信...", "info");
         try {
             const usable = await invoke("poll_controller_status");
@@ -719,7 +712,8 @@ window.addEventListener("DOMContentLoaded", async () => {
         { el: liftingSliderClaw, channel: 'Claw' },
         { el: liftingSliderA, channel: 'A' },
         { el: liftingSliderB, channel: 'B' },
-        { el: liftingSliderC, channel: 'C' }
+        { el: liftingSliderC, channel: 'C' },
+        { el: liftingSliderEnd, channel: 'End' },
     ];
     liftingSliders.forEach(({ el, channel }) => {
         if (el) {

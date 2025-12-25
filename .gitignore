@@ -26,3 +26,9 @@ src-tauri/gen/
 *.njsproj
 *.sln
 *.sw?
+
+# Others
+node_modules/
+.trunk/
+.github/
+.vscode/

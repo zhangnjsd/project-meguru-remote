@@ -43,6 +43,7 @@
                 <div class="button-group">
                     <button id="connect-default-btn" class="btn btn-primary">连接</button>
                     <button id="disconnect-btn" class="btn btn-secondary" disabled>断开</button>
+                    <button id="start-btn" class="btn btn-primary">起步</button>
                 </div>
             </div>
             <!-- Log Ball in Center Panel -->
@@ -54,9 +55,6 @@
             <div class="section arm-control-section">
                 <h2>🦾 机械臂控制</h2>
                 <div class="arm-control-content">
-                    <div class="arm-button-group">
-                        <button id="start-btn" class="btn btn-primary">起步</button>
-                    </div>
                     <div class="lifting-slider-panel">
                         <div class="lifting-slider-track">
                             <input id="lifting-slider-claw" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="机械爪滑杆" />
@@ -67,16 +65,16 @@
                             <span class="discription">Servo B</span>
                             <input id="lifting-slider-c" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="升降滑杆C" />
                             <span class="discription">Servo C</span>
+                            <input id="lifting-slider-end" type="range" min="0" max="255" value="0" step="1" orient="vertical" aria-label="升降滑杆END" />
+                            <span class="discription">Servo END</span>
                         </div>
                     </div>
                 </div>
                 <div class="rotation-slider-panel">
-                    <div class="rotation-slider-header">
-                        <span id="rotation-value" class="rotation-value-display">0x7F</span>
-                    </div>
                     <div class="rotation-slider-track">
                         <input id="rotation-slider" type="range" min="0" max="255" value="127" step="1" aria-label="R向滑杆" />
                     </div>
+                    <span class="discription-r">Rotate</span>
                 </div>
             </div>
         </div>
