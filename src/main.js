@@ -193,6 +193,10 @@ function updateLiftingDisplay(value) {
     liftingValue.textContent = `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
 }
 
+function updateRotationDisplay(value) {
+    // Placeholder to prevent errors since it's called in handleRotationEnd
+}
+
 // ? Reset joystick to center position
 function resetJoystick() {
     // Add transition for smooth return to center
@@ -713,7 +717,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         { el: liftingSliderA, channel: 'A' },
         { el: liftingSliderB, channel: 'B' },
         { el: liftingSliderC, channel: 'C' },
-        { el: liftingSliderEnd, channel: 'End' },
+        { el: liftingSliderEnd, channel: 'END' },
     ];
     liftingSliders.forEach(({ el, channel }) => {
         if (el) {
